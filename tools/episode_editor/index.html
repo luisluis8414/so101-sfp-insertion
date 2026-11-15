@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Episode Editor</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f4f3ef; --surface-1: #fcfcfb; --surface-2: #ffffff; --border: #dddcd5; --border-strong: #b9b8b0;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
+  --series-1: #2a78d6; --series-2: #eb6834; --trim: rgba(120,118,110,0.28);
+  --accent: #2a78d6; --danger: #c43c3b; --danger-bg: #fbe9e9; --ok: #2f7d32; --star: #c98500;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #121211; --surface-1: #1a1a19; --surface-2: #222220; --border: #34332f; --border-strong: #4a4944;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --series-1: #3987e5; --series-2: #d95926; --trim: rgba(0,0,0,0.45);
+    --accent: #3987e5; --danger: #e66767; --danger-bg: #3a1f1f; --ok: #6cbf6f; --star: #eda100;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text-primary); font: 14px/1.4 system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+header { display: flex; align-items: center; gap: 16px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface-1); flex-wrap: wrap; }
+header h1 { font-size: 16px; font-weight: 600; margin: 0; }
+header .stat { color: var(--text-secondary); }
+#save { margin-left: auto; color: var(--text-muted); font-size: 12px; }
+main { flex: 1; display: flex; min-height: 0; }
+aside { width: 250px; border-right: 1px solid var(--border); background: var(--surface-1); display: flex; flex-direction: column; min-height: 0; }
+aside select { margin: 8px; padding: 4px; background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border-strong); border-radius: 6px; }
+#list { overflow-y: auto; flex: 1; }
+.ep { display: grid; grid-template-columns: 34px 48px 1fr 34px; gap: 4px; align-items: center; padding: 5px 10px; cursor: pointer; border-left: 3px solid transparent; font-variant-numeric: tabular-nums; }
+.ep:hover { background: var(--surface-2); }
+.ep.cur { border-left-color: var(--accent); background: var(--surface-2); }
+.ep.del { color: var(--text-muted); text-decoration: line-through; }
+.ep .len { color: var(--text-secondary); font-size: 12px; }
+.ep .stars { color: var(--star); letter-spacing: 1px; font-size: 12px; }
+.ep .flags { font-size: 11px; color: var(--text-muted); text-align: right; }
+section { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+#videos { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; }
+.cam { position: relative; background: #000; border-radius: 6px; overflow: hidden; aspect-ratio: 4/3; }
+.cam video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.cam span { position: absolute; left: 6px; top: 4px; color: #fff; font-size: 12px; background: rgba(0,0,0,0.55); padding: 1px 6px; border-radius: 4px; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+button { background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border-strong); border-radius: 6px; padding: 5px 10px; font: inherit; cursor: pointer; }
+button:hover { border-color: var(--text-secondary); }
+button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.danger.on { background: var(--danger); border-color: var(--danger); }
+.rate button { min-width: 34px; }
+#time { font-variant-numeric: tabular-nums; color: var(--text-secondary); min-width: 220px; }
+.panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+#plotwrap { position: relative; }
+#plot { width: 100%; height: 250px; display: block; cursor: crosshair; }
+#tip { position: absolute; pointer-events: none; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 6px; padding: 6px 8px; font-size: 12px; display: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#tip td { padding: 0 4px; } #tip td.n { color: var(--text-secondary); }
+.legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--series-1); vertical-align: middle; margin-right: 6px; }
+.legend i.dash { border-top: 2px dashed var(--series-2); }
+label.f { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-secondary); flex: 1; min-width: 240px; }
+label.f input { padding: 6px 8px; background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border-strong); border-radius: 6px; font: inherit; }
+.keys { font-size: 12px; color: var(--text-muted); }
+kbd { border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font-size: 11px; background: var(--surface-2); color: var(--text-secondary); }
+#deltag { display: none; color: var(--danger); background: var(--danger-bg); padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Episode Editor</h1>
+  <span class="stat" id="stats"></span>
+  <span id="save">lade…</span>
+</header>
+<main>
+  <aside>
+    <select id="filter">
+      <option value="all">All episodes</option>
+      <option value="unrated">Unrated</option>
+      <option value="low">Rated 1–2</option>
+      <option value="del">Marked for deletion</option>
+      <option value="trim">Trimmed</option>
+    </select>
+    <div id="list"></div>
+  </aside>
+  <section>
+    <div class="row"><h2 id="eptitle" style="margin:0;font-size:16px;font-weight:600"></h2><span id="deltag">will be deleted</span></div>
+    <div id="videos"></div>
+    <div class="row">
+      <button id="play" title="Space">▶ Play</button>
+      <select id="speed"><option>0.25</option><option>0.5</option><option selected>1</option><option>2</option><option>4</option></select>
+      <span id="time"></span>
+      <button id="setStart" title="I">Start here (I)</button>
+      <button id="setEnd" title="O">End here (O)</button>
+      <button id="resetTrim">Reset trim</button>
+    </div>
+    <div class="row">
+      <span style="color:var(--text-secondary)">Rating:</span>
+      <span class="rate" id="rate"></span>
+      <button id="del" class="danger" title="X">Delete (X)</button>
+      <span style="flex:1"></span>
+      <button id="prev" title="P / ↑">◀ Previous</button>
+      <button id="next" title="N / ↓">Next ▶</button>
+    </div>
+    <div class="panel">
+      <div class="legend"><span><i></i>Measured position (observation.state)</span><span><i class="dash"></i>Target from the leader (action)</span><span>grey = trimmed away · click/drag = seek · drag the trim edges</span></div>
+      <div id="plotwrap"><canvas id="plot"></canvas><div id="tip"></div></div>
+    </div>
+    <div class="row">
+      <label class="f">Task<input id="task"></label>
+      <label class="f">Notes<input id="notes" placeholder="e.g. module jammed, second attempt"></label>
+    </div>
+    <div class="keys">
+      <kbd>Space</kbd> play/pause · <kbd>←</kbd><kbd>→</kbd> 1 Frame · <kbd>Shift</kbd>+<kbd>←</kbd><kbd>→</kbd> 1 s ·
+      <kbd>I</kbd>/<kbd>O</kbd> set start/end · <kbd>[</kbd>/<kbd>]</kbd> jump to start/end ·
+      <kbd>1</kbd>–<kbd>5</kbd> rate · <kbd>0</kbd> clear rating · <kbd>X</kbd> delete ·
+      <kbd>N</kbd>/<kbd>↓</kbd> next · <kbd>P</kbd>/<kbd>↑</kbd> previous · <kbd>Esc</kbd> leave text field
+    </div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let META, FPS, EDITS, cur = 0, frame = 0, series = null, playing = false, raf = null, saveTimer = null;
+const vids = {};
+
+function ep() { return META.episodes[cur]; }
+function ed(i = cur) {
+  const e = META.episodes[i], k = String(e.index);
+  const d = EDITS.episodes[k] || {};
+  return { rating: d.rating ?? null, start: d.start ?? 0, end: d.end ?? e.length, delete: !!d.delete, task: d.task ?? e.task, notes: d.notes ?? "" };
+}
+function setEd(patch) {
+  const e = ep(), k = String(e.index);
+  EDITS.episodes[k] = { ...ed(), ...patch };
+  scheduleSave(); renderList(); renderControls(); drawPlot();
+}
+function scheduleSave() {
+  $("save").textContent = "unsaved…";
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const r = await fetch("/api/edits", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(EDITS) });
+      $("save").textContent = r.ok ? "saved ✓ " + new Date().toLocaleTimeString() : "Saving failed!";
+    } catch (e) { $("save").textContent = "Saving failed!"; }
+  }, 300);
+}
+
+function stars(r) { return r ? "★".repeat(r) + "☆".repeat(5 - r) : "–"; }
+function renderStats() {
+  let rated = 0, del = 0, keptFrames = 0, totalFrames = 0;
+  META.episodes.forEach((e, i) => { const d = ed(i); totalFrames += e.length; if (d.rating) rated++; if (d.delete) del++; else keptFrames += d.end - d.start; });
+  $("stats").textContent = `${META.episodes.length} episodes · ${rated} rated · ${del} to delete · keeping ${(keptFrames / FPS / 60).toFixed(1)} of ${(totalFrames / FPS / 60).toFixed(1)} min`;
+}
+function renderList() {
+  const f = $("filter").value;
+  $("list").innerHTML = "";
+  META.episodes.forEach((e, i) => {
+    const d = ed(i), trimmed = d.start > 0 || d.end < e.length;
+    if (f === "unrated" && d.rating) return;
+    if (f === "low" && !(d.rating && d.rating <= 2)) return;
+    if (f === "del" && !d.delete) return;
+    if (f === "trim" && !trimmed) return;
+    const row = document.createElement("div");
+    row.className = "ep" + (i === cur ? " cur" : "") + (d.delete ? " del" : "");
+    row.innerHTML = `<span>#${e.index}</span><span class="len">${((d.end - d.start) / FPS).toFixed(1)}s</span><span class="stars">${stars(d.rating)}</span><span class="flags">${trimmed ? "✂" : ""}${d.notes ? " ✎" : ""}</span>`;
+    row.onclick = () => loadEpisode(i);
+    $("list").appendChild(row);
+    if (i === cur) requestAnimationFrame(() => row.scrollIntoView({ block: "nearest" }));
+  });
+  renderStats();
+}
+function renderControls() {
+  const e = ep(), d = ed();
+  $("eptitle").textContent = `Episode ${e.index}  ·  ${(e.length / FPS).toFixed(1)} s original`;
+  $("deltag").style.display = d.delete ? "inline" : "none";
+  $("del").classList.toggle("on", d.delete);
+  [...$("rate").children].forEach((b, i) => b.classList.toggle("on", d.rating === i + 1));
+  if (document.activeElement !== $("task")) $("task").value = d.task;
+  if (document.activeElement !== $("notes")) $("notes").value = d.notes;
+  renderTime();
+}
+function renderTime() {
+  const d = ed();
+  $("time").textContent = `Frame ${frame} / ${ep().length - 1}  ·  ${(frame / FPS).toFixed(2)} s  ·  trim ${(d.start / FPS).toFixed(2)}–${(d.end / FPS).toFixed(2)} s`;
+}
+
+function buildVideos() {
+  $("videos").innerHTML = "";
+  for (const cam of META.cameras) {
+    const box = document.createElement("div"); box.className = "cam";
+    const v = document.createElement("video"); v.muted = true; v.preload = "auto"; v.playsInline = true;
+    const s = document.createElement("span"); s.textContent = cam.replace("observation.images.", "");
+    box.append(v, s); $("videos").appendChild(box); vids[cam] = v;
+  }
+}
+function camTime(cam, f) { const vi = ep().videos[cam]; return Math.min(vi.from + (f + 0.5) / FPS, vi.to - 0.001); }
+function seek(f) {
+  const e = ep();
+  frame = Math.max(0, Math.min(e.length - 1, Math.round(f)));
+  for (const cam of META.cameras) { const v = vids[cam]; if (v.readyState >= 1) v.currentTime = camTime(cam, frame); }
+  renderTime(); drawPlot();
+}
+async function loadEpisode(i) {
+  pause();
+  cur = Math.max(0, Math.min(META.episodes.length - 1, i));
+  frame = ed().start;
+  const e = ep();
+  await Promise.all(META.cameras.map((cam) => new Promise((res) => {
+    const v = vids[cam], url = e.videos[cam].url;
+    if (v.dataset.src === url && v.readyState >= 1) return res();
+    v.dataset.src = url; v.src = url;
+    v.addEventListener("loadedmetadata", res, { once: true });
+    v.addEventListener("error", res, { once: true });
+  })));
+  series = await (await fetch(`/api/series/${e.index}`)).json();
+  renderList(); renderControls(); seek(frame);
+}
+
+function play() {
+  const d = ed();
+  if (frame >= d.end - 1) seek(d.start);
+  const rate = parseFloat($("speed").value);
+  for (const cam of META.cameras) { vids[cam].playbackRate = rate; vids[cam].play().catch(() => {}); }
+  playing = true; $("play").textContent = "❚❚ Pause";
+  const master = META.cameras[0];
+  const tick = () => {
+    if (!playing) return;
+    const e = ep(), dd = ed();
+    const t = vids[master].currentTime - e.videos[master].from;
+    frame = Math.min(e.length - 1, Math.floor(t * FPS));
+    for (const cam of META.cameras.slice(1)) {
+      const v = vids[cam], tv = v.currentTime - e.videos[cam].from;
+      if (Math.abs(tv - t) > 0.08) v.currentTime = e.videos[cam].from + t;
+    }
+    if (frame >= dd.end - 1 || vids[master].currentTime >= e.videos[master].to - 0.01) { pause(); seek(dd.end - 1); return; }
+    renderTime(); drawPlot();
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+}
+function pause() {
+  playing = false; cancelAnimationFrame(raf);
+  for (const cam of META.cameras || []) vids[cam] && vids[cam].pause();
+  $("play").textContent = "▶ Play";
+}
+
+const PL = { left: 120, right: 10, top: 6, lane: 34 };
+function actionIndex(j) { return series.action_names ? series.action_names.indexOf(series.names[j]) : j; }
+let hoverFrame = null, drag = null;
+function drawPlot() {
+  const c = $("plot"); if (!series) return;
+  const dpr = window.devicePixelRatio || 1, W = c.clientWidth, n = series.state.length, H = PL.top + n * PL.lane + 18;
+  c.style.height = H + "px"; c.width = W * dpr; c.height = H * dpr;
+  const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const css = getComputedStyle(document.documentElement), col = (v) => css.getPropertyValue(v).trim();
+  const len = ep().length, pw = W - PL.left - PL.right, x = (f) => PL.left + (f / Math.max(1, len - 1)) * pw;
+  g.font = "11px system-ui, sans-serif";
+  for (let j = 0; j < n; j++) {
+    const s = series.state[j], ai = actionIndex(j), a = ai >= 0 ? series.action[ai] : null, y0 = PL.top + j * PL.lane, h = PL.lane - 8;
+    const vals = a ? s.concat(a) : s;
+    let lo = Infinity, hi = -Infinity; for (const v of vals) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    if (hi - lo < 1e-6) { hi += 1; lo -= 1; }
+    const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+    const y = (v) => y0 + h - ((v - lo) / (hi - lo)) * h;
+    g.strokeStyle = col("--border"); g.lineWidth = 1; g.beginPath(); g.moveTo(PL.left, y0 + PL.lane - 4); g.lineTo(W - PL.right, y0 + PL.lane - 4); g.stroke();
+    g.fillStyle = col("--text-secondary"); g.textBaseline = "middle";
+    g.fillText(series.names[j].replace(".pos", ""), 6, y0 + h / 2);
+    if (j > 0 && actionIndex(j) < 0 && actionIndex(j - 1) >= 0) { g.strokeStyle = col("--text-muted"); g.lineWidth = 1; g.beginPath(); g.moveTo(0, y0 - 2); g.lineTo(W, y0 - 2); g.stroke(); }
+    const line = (arr, color, dash) => { g.strokeStyle = color; g.lineWidth = dash ? 1.5 : 2; g.setLineDash(dash ? [4, 3] : []); g.beginPath(); arr.forEach((v, i) => i ? g.lineTo(x(i), y(v)) : g.moveTo(x(i), y(v))); g.stroke(); g.setLineDash([]); };
+    if (a) line(a, col("--series-2"), true);
+    line(s, col("--series-1"), false);
+  }
+  const d = ed(), bottom = PL.top + n * PL.lane;
+  g.fillStyle = col("--trim");
+  if (d.start > 0) g.fillRect(PL.left, PL.top, x(d.start) - PL.left, bottom - PL.top);
+  if (d.end < len) g.fillRect(x(d.end - 1), PL.top, W - PL.right - x(d.end - 1), bottom - PL.top);
+  g.strokeStyle = col("--text-primary"); g.lineWidth = 2;
+  for (const f of [d.start, d.end - 1]) { const xx = x(f); g.beginPath(); g.moveTo(xx, PL.top); g.lineTo(xx, bottom); g.stroke(); g.fillStyle = col("--text-primary"); g.fillRect(xx - 4, PL.top, 8, 6); }
+  g.strokeStyle = col("--accent"); g.lineWidth = 1.5; g.beginPath(); g.moveTo(x(frame), PL.top); g.lineTo(x(frame), bottom); g.stroke();
+  if (hoverFrame !== null) { g.strokeStyle = col("--text-muted"); g.lineWidth = 1; g.setLineDash([2, 2]); g.beginPath(); g.moveTo(x(hoverFrame), PL.top); g.lineTo(x(hoverFrame), bottom); g.stroke(); g.setLineDash([]); }
+  g.fillStyle = col("--text-muted"); g.textBaseline = "top";
+  for (let s = 0; s <= len / FPS; s += 5) { const xx = x(s * FPS); g.fillText(s + " s", xx - 6, bottom + 3); }
+}
+function frameAt(ev) { const c = $("plot"), r = c.getBoundingClientRect(), pw = r.width - PL.left - PL.right; return Math.round(Math.max(0, Math.min(1, (ev.clientX - r.left - PL.left) / pw)) * (ep().length - 1)); }
+function showTip(ev, f) {
+  const tip = $("tip"), r = $("plotwrap").getBoundingClientRect();
+  let rows = `<tr><td class="n">Frame</td><td>${f}</td><td class="n">${(f / FPS).toFixed(2)} s</td></tr><tr><td></td><td class="n">measured</td><td class="n">target</td></tr>`;
+  series.names.forEach((nm, j) => { const ai = actionIndex(j); rows += `<tr><td class="n">${nm.replace(".pos", "")}</td><td>${series.state[j][f].toFixed(1)}</td><td>${ai >= 0 ? series.action[ai][f].toFixed(1) : ""}</td></tr>`; });
+  tip.innerHTML = `<table>${rows}</table>`; tip.style.display = "block";
+  const tx = ev.clientX - r.left + 14; tip.style.left = Math.min(tx, r.width - tip.offsetWidth - 4) + "px"; tip.style.top = "4px";
+}
+$("plot").addEventListener("mousedown", (ev) => {
+  pause(); const f = frameAt(ev), d = ed(), c = $("plot"), r = c.getBoundingClientRect(), pw = r.width - PL.left - PL.right;
+  const px = (ff) => PL.left + (ff / Math.max(1, ep().length - 1)) * pw, mx = ev.clientX - r.left;
+  if (Math.abs(mx - px(d.start)) < 7) drag = "start"; else if (Math.abs(mx - px(d.end - 1)) < 7) drag = "end"; else { drag = "seek"; seek(f); }
+});
+window.addEventListener("mousemove", (ev) => {
+  if (!series) return;
+  const c = $("plot"), r = c.getBoundingClientRect(), inside = ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+  const f = frameAt(ev), d = ed();
+  if (drag === "seek") seek(f);
+  else if (drag === "start") { EDITS.episodes[String(ep().index)] = { ...d, start: Math.min(f, d.end - 2) }; seek(Math.min(f, d.end - 2)); renderControls(); }
+  else if (drag === "end") { EDITS.episodes[String(ep().index)] = { ...d, end: Math.max(f + 1, d.start + 2) }; seek(Math.max(f, d.start + 1)); renderControls(); }
+  if (inside) { hoverFrame = f; showTip(ev, f); drawPlot(); } else if (hoverFrame !== null) { hoverFrame = null; $("tip").style.display = "none"; drawPlot(); }
+});
+window.addEventListener("mouseup", () => { if (drag === "start" || drag === "end") { scheduleSave(); renderList(); } drag = null; });
+window.addEventListener("resize", drawPlot);
+
+function setStart() { const d = ed(); setEd({ start: Math.min(frame, d.end - 2) }); }
+function setEnd() { const d = ed(); setEd({ end: Math.max(frame + 1, d.start + 2) }); }
+$("play").onclick = () => playing ? pause() : play();
+$("speed").onchange = () => { if (playing) { pause(); play(); } };
+$("setStart").onclick = setStart; $("setEnd").onclick = setEnd;
+$("resetTrim").onclick = () => setEd({ start: 0, end: ep().length });
+$("del").onclick = () => setEd({ delete: !ed().delete });
+$("prev").onclick = () => loadEpisode(cur - 1); $("next").onclick = () => loadEpisode(cur + 1);
+$("filter").onchange = renderList;
+$("task").oninput = () => { const k = String(ep().index); EDITS.episodes[k] = { ...ed(), task: $("task").value }; scheduleSave(); };
+$("notes").oninput = () => { const k = String(ep().index); EDITS.episodes[k] = { ...ed(), notes: $("notes").value }; scheduleSave(); renderList(); };
+for (let r = 1; r <= 5; r++) { const b = document.createElement("button"); b.textContent = r; b.title = r === 5 ? "perfekt" : r === 1 ? "schlecht" : ""; b.onclick = () => setEd({ rating: ed().rating === r ? null : r }); $("rate").appendChild(b); }
+
+document.addEventListener("keydown", (ev) => {
+  const t = ev.target;
+  if (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA") { if (ev.key === "Escape") t.blur(); return; }
+  const k = ev.key, step = ev.shiftKey ? FPS : 1;
+  if (k === " ") { ev.preventDefault(); playing ? pause() : play(); }
+  else if (k === "ArrowRight") { ev.preventDefault(); pause(); seek(frame + step); }
+  else if (k === "ArrowLeft") { ev.preventDefault(); pause(); seek(frame - step); }
+  else if (k === "ArrowDown" || k === "n" || k === "N") { ev.preventDefault(); loadEpisode(cur + 1); }
+  else if (k === "ArrowUp" || k === "p" || k === "P") { ev.preventDefault(); loadEpisode(cur - 1); }
+  else if (k === "i" || k === "I") setStart();
+  else if (k === "o" || k === "O") setEnd();
+  else if (k === "[") { pause(); seek(ed().start); }
+  else if (k === "]") { pause(); seek(ed().end - 1); }
+  else if (k >= "1" && k <= "5") setEd({ rating: Number(k) });
+  else if (k === "0") setEd({ rating: null });
+  else if (k === "x" || k === "X" || k === "Delete") setEd({ delete: !ed().delete });
+});
+
+(async () => {
+  META = await (await fetch("/api/meta")).json();
+  FPS = META.fps; EDITS = META.edits; EDITS.episodes = EDITS.episodes || {};
+  $("title").textContent = META.name; document.title = "Episode Editor – " + META.name;
+  $("save").textContent = "Edits: " + META.edits_path;
+  buildVideos(); await loadEpisode(0);
+})();
+</script>
+</body>
+</html>
